@@ -56,6 +56,10 @@ export const Value = ...;
 - **Part descriptions**: From JSDoc on React component exports in their `.tsx` files
 - **Prop/state descriptions**: From JSDoc on interface properties in the core file
 
+### Util JSDoc
+
+Util exports (hooks, controllers, factories, selectors) have their own JSDoc conventions for `@param`, `@label`, and `@public` tags. See `references/util-conventions.md` → "JSDoc Conventions".
+
 ## Common Failures
 
 The builder fails silently for many issues — data just won't appear in the JSON:
@@ -76,10 +80,13 @@ The builder fails silently for many issues — data just won't appear in the JSO
 # Generate JSON
 pnpm -F site api-docs
 
-# Check output
-cat site/src/content/generated-api-reference/{name}.json
+# Check component output
+cat site/src/content/generated-component-reference/{name}.json
+
+# Check util output
+cat site/src/content/generated-util-reference/{slug}.json
 
 # Verify schema
-# The builder validates against ComponentApiReferenceSchema before writing.
+# The builder validates against ComponentReferenceSchema / UtilReferenceSchema before writing.
 # Schema errors are logged as errors and cause exit code 1.
 ```

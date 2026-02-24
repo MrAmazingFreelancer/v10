@@ -1,16 +1,16 @@
 /**
  * Re-export types from the shared schema.
- * The shared schema in src/types/api-reference.ts is the single source of truth.
+ * The shared schema in src/types/component-reference.ts is the single source of truth.
  */
 export type {
-  ComponentApiReference,
+  ComponentReference,
   DataAttrDef,
-  PartApiReference,
+  PartReference,
   PropDef,
   StateDef,
-} from '../../../src/types/api-reference.js';
+} from '../../../src/types/component-reference.js';
 
-export { ComponentApiReferenceSchema, PartApiReferenceSchema } from '../../../src/types/api-reference.js';
+export { ComponentReferenceSchema, PartReferenceSchema } from '../../../src/types/component-reference.js';
 
 /**
  * Discovered part within a multi-part component.
@@ -54,7 +54,7 @@ export interface ComponentSource {
 export interface ExtractedProp {
   name: string;
   type: string;
-  shortType?: string;
+  detailedType?: string;
   description?: string;
   default?: string;
   required?: boolean;
@@ -74,7 +74,7 @@ export interface CoreExtraction {
  * Extraction result from data attributes file.
  */
 export interface DataAttrsExtraction {
-  attrs: Array<{ name: string; description: string }>;
+  attrs: Array<{ name: string; description: string; type?: string }>;
 }
 
 export interface HtmlExtraction {

@@ -1,0 +1,41 @@
+---
+title: PlayerMixin
+description: Composed mixin combining ProviderMixin and ContainerMixin for a complete player element
+---
+
+import UtilReference from "@/components/docs/api-reference/UtilReference.astro";
+import DocsLink from "@/components/docs/DocsLink.astro";
+
+`PlayerMixin` combines <DocsLink slug="reference/provider-mixin">`ProviderMixin`</DocsLink> and <DocsLink slug="reference/container-mixin">`ContainerMixin`</DocsLink> into a single mixin. The resulting class both owns the player store and auto-attaches media elements, making it a complete player element. It is equivalent to `ProviderMixin(ContainerMixin(Base))` — it creates the store on connect, observes the DOM for `<video>` or `<audio>` children, and publishes the store to descendant elements via context.
+
+### Choose your approach
+
+| Approach | When to use |
+|----------|-------------|
+| `PlayerElement` | Simplest setup. Register and use directly -- no custom class needed. |
+| `PlayerMixin(Base)` | Custom player element with additional lifecycle logic or methods. |
+| <DocsLink slug="reference/provider-mixin">`ProviderMixin`</DocsLink> + <DocsLink slug="reference/container-mixin">`ContainerMixin`</DocsLink> | Provider and container are separate elements (e.g., store owner is a layout shell, media lives in a content region). |
+
+### PlayerElement vs PlayerMixin
+
+For the simplest setup, use the pre-composed `PlayerElement` from `createPlayer`:
+
+```ts
+const { PlayerElement } = createPlayer({ features: features.video });
+customElements.define('video-player', PlayerElement);
+```
+
+Use `PlayerMixin` when you need to add custom behavior:
+
+```ts
+class MyPlayer extends PlayerMixin(MediaElement) {
+  connectedCallback() {
+    super.connectedCallback();
+    this.store.subscribe(() => {
+      // Custom logic on state changes
+    });
+  }
+}
+```
+
+<UtilReference util="PlayerMixin" />

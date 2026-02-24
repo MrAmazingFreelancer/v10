@@ -8,7 +8,7 @@ import { z } from 'astro/zod';
 
 export const PropDefSchema = z.object({
   type: z.string(),
-  shortType: z.string().optional(),
+  detailedType: z.string().optional(),
   description: z.string().optional(),
   default: z.string().optional(),
   required: z.boolean().optional(),
@@ -16,15 +16,17 @@ export const PropDefSchema = z.object({
 
 export const StateDefSchema = z.object({
   type: z.string(),
-  shortType: z.string().optional(),
+  detailedType: z.string().optional(),
   description: z.string().optional(),
 });
 
 export const DataAttrDefSchema = z.object({
   description: z.string(),
+  type: z.string().optional(),
+  detailedType: z.string().optional(),
 });
 
-export const PartApiReferenceSchema = z.object({
+export const PartReferenceSchema = z.object({
   name: z.string(),
   description: z.string().optional(),
   props: z.record(z.string(), PropDefSchema),
@@ -39,12 +41,12 @@ export const PartApiReferenceSchema = z.object({
   }),
 });
 
-export const ComponentApiReferenceSchema = PartApiReferenceSchema.extend({
-  parts: z.record(z.string(), PartApiReferenceSchema).optional(),
+export const ComponentReferenceSchema = PartReferenceSchema.extend({
+  parts: z.record(z.string(), PartReferenceSchema).optional(),
 });
 
 export type PropDef = z.infer<typeof PropDefSchema>;
 export type StateDef = z.infer<typeof StateDefSchema>;
 export type DataAttrDef = z.infer<typeof DataAttrDefSchema>;
-export type PartApiReference = z.infer<typeof PartApiReferenceSchema>;
-export type ComponentApiReference = z.infer<typeof ComponentApiReferenceSchema>;
+export type PartReference = z.infer<typeof PartReferenceSchema>;
+export type ComponentReference = z.infer<typeof ComponentReferenceSchema>;
