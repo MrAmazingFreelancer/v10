@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx setup.ts && vite",
-    "build": "tsx setup.ts && vite build",
+    "dev": "tsx scripts/setup.ts && vite",
+    "build": "tsx scripts/setup.ts && vite build",
     "preview": "vite preview",
+    "reset": "tsx scripts/reset.ts",
     "sync": "tsx scripts/sync.ts"
   },
   "dependencies": {
@@ -17,8 +18,7 @@
     "@videojs/skins": "workspace:*",
     "@videojs/spf": "workspace:*",
     "@videojs/store": "workspace:*",
-    "@videojs/utils": "workspace:*",
-    "wouter": "^3.0.0"
+    "@videojs/utils": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.0",
