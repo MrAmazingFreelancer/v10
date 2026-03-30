@@ -8,7 +8,8 @@ import '@app/styles.css';
 //   autoplay=true        Start with autoplay enabled
 //   preload=auto|metadata|none  Initial preload mode
 
-import { createPlaybackEngine } from '@videojs/spf/playback-engine';
+import type { PlaybackEngineState } from '@videojs/spf/playback-engine';
+import { createPlaybackEngine, effect } from '@videojs/spf/playback-engine';
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const video = document.getElementById('video') as HTMLVideoElement;
@@ -56,7 +57,7 @@ function formatBandwidth(bps: number): string {
   return `${Math.round(bps / 1000)} Kbps`;
 }
 
-function getVideoTracks(state: ReturnType<typeof engine.state.current>) {
+function getVideoTracks(state: PlaybackEngineState) {
   return state.presentation?.selectionSets?.find((s) => s.type === 'video')?.switchingSets[0]?.tracks ?? [];
 }
 
@@ -75,7 +76,7 @@ function updateShareUrl() {
 
 function updateNowPlayingQuality() {
   if (!engine) return;
-  const segments = engine.owners.current.videoBufferActor?.snapshot.context.segments ?? [];
+  const segments = engine.owners.get().videoBufferActor?.snapshot.get().context.segments ?? [];
   const t = video.currentTime;
   const current = segments.find((s) => t >= s.startTime && t < s.startTime + s.duration);
   if (current?.trackBandwidth) {
@@ -98,7 +99,7 @@ function correctedEstimate(estimate: number, totalWeight: number, halfLife: numb
 
 function updateThroughputDisplay() {
   if (!engine) return;
-  const bs = engine.state.current.bandwidthState;
+  const bs = engine.state.get().bandwidthState;
   if (!bs || bs.bytesSampled === 0) {
     throughputDiv.textContent = '📶 Throughput: no samples yet';
     throughputDiv.className = '';
@@ -119,7 +120,7 @@ function updateThroughputDisplay() {
 
 function renderRenditionPicker() {
   if (!engine) return;
-  const state = engine.state.current;
+  const state = engine.state.get();
   const tracks = getVideoTracks(state);
   const isManual = state.abrDisabled === true;
 
@@ -143,7 +144,7 @@ function renderRenditionPicker() {
     enableBtn.textContent = 'Enable ABR';
     enableBtn.addEventListener('click', () => {
       log('ABR re-enabled', 'success');
-      engine.state.patch({ abrDisabled: false });
+      engine.state.set({ ...engine.state.get(), abrDisabled: false });
     });
     statusRow.appendChild(enableBtn);
   }
@@ -160,7 +161,7 @@ function renderRenditionPicker() {
     btn.title = track.id;
     btn.addEventListener('click', () => {
       log(`Manual rendition select: ${formatBandwidth(track.bandwidth)} (ABR disabled)`, 'warning');
-      engine.state.patch({ selectedVideoTrackId: track.id, abrDisabled: true });
+      engine.state.set({ ...engine.state.get(), selectedVideoTrackId: track.id, abrDisabled: true });
     });
     renditionButtonsDiv.appendChild(btn);
   }
@@ -168,7 +169,7 @@ function renderRenditionPicker() {
 
 function renderResolutionStatus() {
   if (!engine) return;
-  const state = engine.state.current;
+  const state = engine.state.get();
   const tracks = getVideoTracks(state);
 
   if (tracks.length === 0) {
@@ -193,8 +194,8 @@ function inspectState() {
     stateDiv.innerHTML = '<h2>State Inspector</h2><div class="error">Engine not initialized</div>';
     return;
   }
-  const state = engine.state.current;
-  const owners = engine.owners.current;
+  const state = engine.state.get();
+  const owners = engine.owners.get();
 
   const videoBufferRanges = owners.videoBuffer
     ? Array.from(
@@ -246,8 +247,8 @@ function inspectState() {
     <div>readyState: ${owners.mediaSource?.readyState ?? 'N/A'}</div>
 
     <h3>Buffer Model (actor context)</h3>
-    <div>Video segments loaded: ${owners.videoBufferActor?.snapshot.context.segments.length ?? 0}</div>
-    <div>Audio segments loaded: ${owners.audioBufferActor?.snapshot.context.segments.length ?? 0}</div>
+    <div>Video segments loaded: ${owners.videoBufferActor?.snapshot.get().context.segments.length ?? 0}</div>
+    <div>Audio segments loaded: ${owners.audioBufferActor?.snapshot.get().context.segments.length ?? 0}</div>
 
     <h3>Video Element State</h3>
     <div>readyState: ${video.readyState}</div>
@@ -259,42 +260,50 @@ function inspectState() {
   `;
 }
 
-// ── Engine ────────────────────────────────────────────────────────────────────
+// ── Engine lifecycle ───────────────────────────────────────────────────────────
 log('=== SPF Segment Loading POC Test ===');
 log(`Stream: ${INITIAL_SRC}`);
 
 let engine: ReturnType<typeof createPlaybackEngine>;
+let cleanupEffects: () => void = () => {};
 
-try {
+function startEngine(src: string) {
+  cleanupEffects();
+  if (engine) engine.destroy();
+
   engine = createPlaybackEngine({ initialBandwidth: 1_000_000 });
-
-  log('✓ Engine created', 'success');
   (window as any).engine = engine;
-  (window as any).state = () => engine.state.current;
-  (window as any).owners = () => engine.owners.current;
-  log('Exposed as window.engine / window.state() / window.owners()');
+  (window as any).state = () => engine.state.get();
+  (window as any).owners = () => engine.owners.get();
 
-  // ── State subscriptions ──────────────────────────────────────────────────
+  // ── Reactive effects ───────────────────────────────────────────────────────
+
+  // prev/prevOwners track one-time transitions for logging purposes.
+  // They are reset on each startEngine call so a new source logs correctly.
   const prev = {
     hasPresentation: false,
     selectedVideoTrackId: undefined as string | undefined,
     selectedAudioTrackId: undefined as string | undefined,
     selectedTextTrackId: undefined as string | undefined,
   };
+  const prevOwners = { hasMediaSource: false, hasVideoBuffer: false, hasAudioBuffer: false };
 
-  engine.state.subscribe((state) => {
+  // State logger + auto-select first text track
+  const stopStateLogger = effect(() => {
+    const state = engine.state.get();
+
     if (state.presentation && !prev.hasPresentation) {
       log('Presentation resolved');
       prev.hasPresentation = true;
     }
 
-    // Auto-select first text track
+    // Auto-select first text track when presentation arrives
     if (state.presentation && !state.selectedTextTrackId && state.presentation.selectionSets) {
       const textSet = state.presentation.selectionSets.find((s) => s.type === 'text');
       const firstText = textSet?.switchingSets?.[0]?.tracks?.[0];
       if (firstText) {
         log(`Auto-selecting text track: ${firstText.id}`);
-        engine.state.patch({ selectedTextTrackId: firstText.id });
+        engine.state.set({ ...engine.state.get(), selectedTextTrackId: firstText.id });
       }
     }
 
@@ -313,16 +322,18 @@ try {
     }
   });
 
-  // Throughput display — update whenever bandwidthState changes
-  engine.state.subscribe(
-    (s) => s.bandwidthState,
-    () => updateThroughputDisplay()
-  );
+  // Throughput + rendition picker + resolution status — re-render on any state change
+  const stopStateUI = effect(() => {
+    engine.state.get(); // track all state changes
+    updateThroughputDisplay();
+    renderRenditionPicker();
+    renderResolutionStatus();
+  });
 
-  // ── Owners subscriptions ─────────────────────────────────────────────────
-  const prevOwners = { hasMediaSource: false, hasVideoBuffer: false, hasAudioBuffer: false };
+  // Owners logger
+  const stopOwnersLogger = effect(() => {
+    const owners = engine.owners.get();
 
-  engine.owners.subscribe((owners) => {
     if (owners.mediaSource && !prevOwners.hasMediaSource) {
       log(`MediaSource created: ${owners.mediaSource.readyState}`, 'success');
       prevOwners.hasMediaSource = true;
@@ -341,7 +352,7 @@ try {
       };
 
       owners.videoBuffer.addEventListener('updateend', () => {
-        const buf = owners.videoBuffer;
+        const buf = engine.owners.get().videoBuffer;
         if (!buf) return;
         const ranges: string[] = [];
         for (let i = 0; i < buf.buffered.length; i++) {
@@ -364,7 +375,7 @@ try {
       };
 
       owners.audioBuffer.addEventListener('updateend', () => {
-        const buf = owners.audioBuffer;
+        const buf = engine.owners.get().audioBuffer;
         if (!buf) return;
         const ranges: string[] = [];
         for (let i = 0; i < buf.buffered.length; i++) {
@@ -375,39 +386,33 @@ try {
     }
   });
 
-  // Re-render rendition picker when selection or ABR mode changes
-  engine.state.subscribe(
-    (s) => `${s.selectedVideoTrackId}|${s.abrDisabled}`,
-    () => renderRenditionPicker()
-  );
+  cleanupEffects = () => {
+    stopStateLogger();
+    stopStateUI();
+    stopOwnersLogger();
+  };
 
-  // Re-render both panels when presentation changes
-  engine.state.subscribe(
-    (s) => s.presentation,
-    () => {
-      renderRenditionPicker();
-      renderResolutionStatus();
-    }
-  );
+  log('✓ Engine created', 'success');
+  log('Exposed as window.engine / window.state() / window.owners()');
+  log('✓ Reactive effects active', 'success');
 
-  log('✓ State subscriptions active', 'success');
-
-  // ── Wire media element ───────────────────────────────────────────────────
-  video.muted = INITIAL_MUTED;
-  video.autoplay = INITIAL_AUTOPLAY;
-  // Set preload on the element BEFORE patching owners so syncPreloadAttribute
+  // ── Wire media element ──────────────────────────────────────────────────────
+  // Set preload on the element BEFORE wiring owners so syncPreloadAttribute
   // reads the correct value rather than the hardcoded "none" from the HTML.
-  video.preload = INITIAL_PRELOAD;
-
-  engine.owners.patch({ mediaElement: video });
-  engine.state.patch({
-    presentation: { url: INITIAL_SRC },
-  });
+  video.preload = preloadSelect.value as 'auto' | 'metadata' | 'none';
+  engine.owners.set({ mediaElement: video });
+  engine.state.set({ ...engine.state.get(), presentation: { url: src } });
 
   log('✓ Orchestration started', 'success');
 
   // Auto-inspect periodically
   setInterval(inspectState, 3000);
+}
+
+try {
+  video.muted = INITIAL_MUTED;
+  video.autoplay = INITIAL_AUTOPLAY;
+  startEngine(INITIAL_SRC);
 } catch (error) {
   log(`✗ Error creating engine: ${(error as Error).message}`, 'error');
   console.error(error);
@@ -433,13 +438,7 @@ setSrcBtn.addEventListener('click', () => {
   const url = srcInput.value.trim();
   if (!url) return;
   log(`Setting src: ${url}`, 'info');
-  engine.state.patch({
-    presentation: { url },
-    selectedVideoTrackId: undefined,
-    selectedAudioTrackId: undefined,
-    selectedTextTrackId: undefined,
-    abrDisabled: false,
-  });
+  startEngine(url);
   updateShareUrl();
 });
 
@@ -459,7 +458,7 @@ autoplayToggle.addEventListener('change', () => {
 
 preloadSelect.addEventListener('change', () => {
   const value = preloadSelect.value as 'auto' | 'metadata' | 'none';
-  engine.state.patch({ preload: value });
+  engine.state.set({ ...engine.state.get(), preload: value });
   log(`Preload: ${value}`);
   updateShareUrl();
 });
