@@ -509,3 +509,64 @@ export function generateComponentReferences(monorepoRoot: string): ComponentResu
 
   return results;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// FEATURE REFERENCE PIPELINE
+// ═══════════════════════════════════════════════════════════════════════
+
+export interface FeatureStateDef {
+  type: string;
+  detailedType?: string;
+  description?: string;
+}
+
+export interface FeatureActionDef {
+  type: string;
+  detailedType?: string;
+  description?: string;
+}
+
+export interface FeatureReference {
+  name: string;
+  slug: string;
+  description?: string;
+  state: Record<string, FeatureStateDef>;
+  actions: Record<string, FeatureActionDef>;
+}
+
+export interface FeatureResult {
+  name: string;
+  slug: string;
+  reference: FeatureReference;
+}
+
+export { generateFeatureReferences } from './feature-handler.js';
+
+// ═══════════════════════════════════════════════════════════════════════
+// PRESET REFERENCE PIPELINE
+// ═══════════════════════════════════════════════════════════════════════
+
+export interface PresetSkinDef {
+  name: string;
+  tagName?: string;
+}
+
+export interface PresetReference {
+  name: string;
+  featureBundle: string;
+  features: string[];
+  html: {
+    skins: PresetSkinDef[];
+  };
+  react: {
+    skins: PresetSkinDef[];
+    mediaElement: string;
+  };
+}
+
+export interface PresetResult {
+  name: string;
+  reference: PresetReference;
+}
+
+export { generatePresetReferences } from './preset-handler.js';
