@@ -6,9 +6,8 @@
 
 Modern, modular, and composable media player framework for Web and React.
 
-🚧 Beta - close to stable. Experimental adoption in real projects. 🚧
 
-Video.js v10 is close to stable. Try it out in real projects and share your feedback 🙏.
+Video.js v10 is close to stable and a real projects,  So help out the makers and share your feedback 🙏.
 
 - Read our [design documents][rfcs].
 - Read the [v10 discussion topic][v10-discussion].
